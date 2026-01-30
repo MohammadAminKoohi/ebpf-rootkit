@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Default configuration (can be overridden by .rkit.env)
+VM_NAME="ebpf-dev"
+VM_CPUS="2"
+VM_MEM="4G"
+VM_DISK="20G"
+UBUNTU_VERSION="22.04"
+DOCKER_IMAGE="ebpf-builder"
+WORKSPACE="/workspace"
+PROJECT_DIR="$(pwd)"
+VM_SETUP_DIR="${PROJECT_DIR}/vm-setup"
+
+CONFIG_FILE="${VM_SETUP_DIR}/.rkit.env"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+CLOUD_INIT_FILE="${CLOUD_INIT_FILE:-${VM_SETUP_DIR}/.rkit.cloud-init.yaml}"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+log() {
+    echo -e "${GREEN}[+]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[!]${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[-]${NC} $1"
+    exit 1
+}
+
+check_command() {
+    command -v "$1" >/dev/null 2>&1 || error "$1 is required but not installed"
+}
+
+vm_exists() {
+    multipass list --format json | jq -e ".list[] | select(.name == \"$1\")" >/dev/null 2>&1
+}
+
+create_vms() {
+    local name="${1:-$VM_NAME}"
+    
+    if vm_exists "$name"; then
+        warn "VM '$name' already exists."
+        delete_vms "$name"
+    fi
+    
+    log "Creating VM '$name'..."
+    
+    local cloud_init_src="$CLOUD_INIT_FILE"
+    if [ ! -f "$cloud_init_src" ]; then
+        error "Cloud-init config not found at $cloud_init_src."
+    fi
+    
+    local cloud_init="/tmp/${name}-cloud-init.yaml"
+    cp "$cloud_init_src" "$cloud_init"
+    
+    multipass launch "$UBUNTU_VERSION" \
+        --name "$name" \
+        --cpus "$VM_CPUS" \
+        --memory "$VM_MEM" \
+        --disk "$VM_DISK" \
+        --cloud-init "$cloud_init"
+    
+    log "Mounting project directory..."
+    multipass mount "$PROJECT_DIR" "${name}:${WORKSPACE}"
+    
+    log "VM '$name' created successfully!"
+}
+
+delete_vms() {
+    local name="${1:-$VM_NAME}"
+    
+    if ! vm_exists "$name"; then
+        warn "VM '$name' does not exist"
+        return 0
+    fi
+    
+    log "Deleting VM '$name'..."
+    multipass stop "$name" 2>/dev/null || true
+    multipass delete "$name"
+    multipass purge
+    
+    log "VM '$name' deleted"
+}
+
+connect() {
+    local name="${1:-$VM_NAME}"
+    if ! vm_exists "$name"; then
+        error "VM '$name' does not exist. Create it first!"
+    fi
+
+    if ! multipass exec "$name" -- true 2>/dev/null; then
+        log "Starting VM '$name'..."
+        multipass start "$name"
+        sleep 1
+    fi
+
+    log "Opening interactive shell into VM '$name'..."
+    exec multipass shell "$name"
+}
+
+usage() {
+    cat <<EOF
+Simple eBPF Development Environment
+
+Usage: $0 <command> [options]
+
+Commands:
+  create [name]    Create VM 
+  delete [name]    Delete VM
+  shell [name]     Enter VM environment
+  compile [name]   Compile project and output ELF files #TODO
+  deploy [name]    Deploy compiled binaries to VM #TODO
+  build [name]     Quick: create, compile, and deploy #TODO
+  
+Examples:
+  $0 create          # Create default VM
+  $0 shell           # Enter build environment
+  $0 compile         # Build project
+  $0 build           # Full build and deploy
+
+VM defaults: name=$VM_NAME, CPUs=$VM_CPUS, RAM=$VM_MEM, Disk=$VM_DISK
+EOF
+}
+
+main() {
+    check_command multipass
+    check_command docker
+    check_command jq
+    
+    local command="${1:--h}"
+    shift
+    
+    case $command in
+        create)
+            create_vms "$@"
+            ;;
+        delete|remove)
+            delete_vms "$@"
+            ;;
+        shell)
+            connect "$@"
+            ;;
+        -h|--help|help)
+            usage
+            ;;
+        *)
+            error "Unknown command: $command\nRun '$0 --help' for usage"
+            ;;
+    esac
+}
+
+main "$@"
