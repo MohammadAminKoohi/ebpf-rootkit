@@ -61,16 +61,13 @@ create_vms() {
     if [ ! -f "$cloud_init_src" ]; then
         error "Cloud-init config not found at $cloud_init_src."
     fi
-    
-    local cloud_init="/tmp/${name}-cloud-init.yaml"
-    cp "$cloud_init_src" "$cloud_init"
-    
+
     multipass launch "$UBUNTU_VERSION" \
         --name "$name" \
         --cpus "$VM_CPUS" \
         --memory "$VM_MEM" \
         --disk "$VM_DISK" \
-        --cloud-init "$cloud_init"
+        --cloud-init "$cloud_init_src"
     
     log "Mounting project directory..."
     multipass mount "$PROJECT_DIR" "${name}:${WORKSPACE}"
@@ -108,6 +105,10 @@ connect() {
 
     log "Opening interactive shell into VM '$name'..."
     exec multipass shell "$name"
+}
+
+list() {
+    multipass list
 }
 
 usage() {
@@ -151,6 +152,9 @@ main() {
             ;;
         shell)
             connect "$@"
+            ;;
+        list)
+            list
             ;;
         -h|--help|help)
             usage
