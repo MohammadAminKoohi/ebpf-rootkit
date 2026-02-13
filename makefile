@@ -2,8 +2,7 @@ OUTPUT := .output
 CLANG  := clang
 BPFTOOL := bpftool
 LIBBPF_SRC := /usr/include/bpf 
-ARCH := $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/' | sed 's/ppc64le/powerpc/' | sed 's/mips.*/mips/')
-
+ARCH := x86
 BPF_SRCS := $(wildcard */*.bpf.c)
 BPF_OBJS := $(patsubst src/bpf/%.bpf.c, $(OUTPUT)/%.bpf.o, $(BPF_SRCS))
 BPF_SKELS := $(patsubst src/bpf/%.bpf.c, $(OUTPUT)/%.skel.h, $(BPF_SRCS))
