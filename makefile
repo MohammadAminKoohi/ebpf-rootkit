@@ -4,6 +4,7 @@ BPFTOOL := bpftool
 LIBBPF_SRC := /usr/include/bpf 
 ARCH := x86
 APP := $(OUTPUT)/rkit-agent
+CLI := cli
 
 BPF_SRCS := $(wildcard src/bpf/*.c)
 BPF_OBJS := $(patsubst src/bpf/%.c, $(OUTPUT)/%.bpf.o, $(BPF_SRCS))
@@ -17,8 +18,11 @@ LDFLAGS := -lbpf -lelf -lz
 
 .PHONY: all clean vmlinux
 
-all: $(APP)
+all: $(APP) $(CLI)
 	@echo "[+] Build complete: $(APP)"
+
+$(CLI): src/cli.c 
+	@$(CLANG) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
 $(APP): src/main.c $(BPF_SKELS) | $(OUTPUT)
 	@echo "  CC      $@"
