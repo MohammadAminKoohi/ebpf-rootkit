@@ -70,7 +70,7 @@ create_vms() {
         --cloud-init "$cloud_init_src" \
     
     log "Mounting project directory..."
-    multipass mount "$PROJECT_DIR" "${name}:${WORKSPACE}"
+    multipass mount "$PROJECT_DIR/.output" "${name}:${WORKSPACE}"
     
     log "VM '$name' created successfully!"
 }
