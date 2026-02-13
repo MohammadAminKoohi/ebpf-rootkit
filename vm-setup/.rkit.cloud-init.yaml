@@ -4,7 +4,13 @@ packages:
   - git
   - curl
   - jq
-# eBPF Tools & Dependencies
-  - linux-tools-generic    
-  - linux-headers-generic 
-  - bpfcc-tools            
+  # eBPF Tools & Dependencies
+  - linux-tools-generic
+  - linux-tools-generic
+  - linux-headers-generic
+  - linux-cloud-tools-generic
+  - bpfcc-tools
+  - clang
+  - llvm
+  - libbpf-dev
+  - bpftool

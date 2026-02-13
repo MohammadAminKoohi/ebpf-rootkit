@@ -67,7 +67,7 @@ create_vms() {
         --cpus "$VM_CPUS" \
         --memory "$VM_MEM" \
         --disk "$VM_DISK" \
-        --cloud-init "$cloud_init_src"
+        --cloud-init "$cloud_init_src" \
     
     log "Mounting project directory..."
     multipass mount "$PROJECT_DIR" "${name}:${WORKSPACE}"
