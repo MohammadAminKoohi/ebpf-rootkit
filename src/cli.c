@@ -10,6 +10,7 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
+#include <time.h>
 
 #define MAGIC_WINDOW 54321
 #define AGENT_PORT 2333
