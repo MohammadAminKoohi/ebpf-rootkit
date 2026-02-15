@@ -3,12 +3,11 @@ CLANG  := clang
 BPFTOOL := bpftool
 LIBBPF_SRC := /usr/include/bpf 
 ARCH := x86
-APP := $(OUTPUT)/rkit-agent
+APP := bpf-loader
 CLI := cli
 
 BPF_SRCS := $(wildcard src/bpf/*.c)
 BPF_OBJS := $(patsubst src/bpf/%.c, $(OUTPUT)/%.bpf.o, $(BPF_SRCS))
-BPF_SKELS := $(patsubst src/bpf/%.c, $(OUTPUT)/%.skel.h, $(BPF_SRCS))
 BPF_CFLAGS := -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
           -I$(OUTPUT) -Isrc/bpf -I/usr/include/bpf \
 		  -I/usr/include/$(shell uname -m)-linux-gnu
@@ -24,9 +23,9 @@ all: $(APP) $(CLI)
 $(CLI): src/cli.c 
 	@$(CLANG) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-$(APP): src/main.c $(BPF_SKELS) | $(OUTPUT)
-	@echo "  CC      $@"
-	@$(CLANG) $(CFLAGS) $< -o $@ $(LDFLAGS)
+$(APP): main.go $(BPF_OBJS)
+	@echo "  GO      $@"
+	@go build -o $@ main.go
 
 $(OUTPUT)/vmlinux.h: | $(OUTPUT)
 	@echo "  GEN     vmlinux.h"
@@ -36,9 +35,9 @@ $(OUTPUT)/%.bpf.o: src/bpf/%.c | $(OUTPUT) $(OUTPUT)/vmlinux.h
 	@echo "  CLANG   $@"
 	@$(CLANG) $(BPF_CFLAGS) -c $< -o $@
 
-$(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT)
-	@echo "  BPFTOOL $@"
-	@$(BPFTOOL) gen skeleton $< > $@
+# $(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT)
+# 	@echo "  BPFTOOL $@"
+# 	@$(BPFTOOL) gen skeleton $< > $@
 
 $(OUTPUT):
 	mkdir -p $(OUTPUT)
