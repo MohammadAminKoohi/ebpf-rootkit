@@ -14,7 +14,9 @@ BPF_CFLAGS := -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
 		  -I/usr/include/$(shell uname -m)-linux-gnu
 
 CFLAGS := -g -O2 -Wall -I$(OUTPUT)
-LDFLAGS := -lbpf -lelf -lz
+LDFLAGS := -lbpf -lelf -lz -lssl -lcrypto
+
+.SECONDARY:
 
 .PHONY: all clean vmlinux
 
@@ -22,7 +24,7 @@ all: $(APP) $(CLI)
 	@echo "[+] Build complete: $(APP)"
 
 $(CLI): src/cli.c 
-	@$(CLANG) $(CFLAGS) $< -o $@ $(LDFLAGS)
+	@$(CLANG) $(CFLAGS) $< -o $@
 
 $(APP): src/main.c $(BPF_SKELS) | $(OUTPUT)
 	@echo "  CC      $@"
@@ -45,3 +47,4 @@ $(OUTPUT):
 
 clean:
 	rm -rf $(OUTPUT)
+	rm -f $(CLI)
