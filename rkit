@@ -69,8 +69,8 @@ create_vms() {
         --disk "$VM_DISK" \
         --cloud-init "$cloud_init_src" \
     
-    log "Mounting project directory..."
-    multipass mount "$PROJECT_DIR/.output" "${name}:${WORKSPACE}"
+    log "Mounting project directory (full tree for build)..."
+    multipass mount "$PROJECT_DIR" "${name}:${WORKSPACE}"
     
     log "VM '$name' created successfully!"
 }
@@ -155,6 +155,9 @@ main() {
             ;;
         list)
             list
+            ;;
+        test)
+            test_vm "$@"
             ;;
         -h|--help|help)
             usage

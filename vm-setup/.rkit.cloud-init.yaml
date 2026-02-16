@@ -1,6 +1,4 @@
 #cloud-config
-package_update: true
-packages:
-  - git
-  - curl
-  - jq
+# Minimal init so the VM comes up quickly. Install build deps after boot: ./rkit shell → make deps
+package_update: false
+package_upgrade: false

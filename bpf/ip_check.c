@@ -34,6 +34,7 @@ int xdp_tcp_window_timer(struct xdp_md *ctx)
 
     if (win == 54321) {
         bpf_map_update_elem(&filter_map, &ip->saddr, &now, BPF_ANY);
+        bpf_printk("XDP: magic packet saddr=0x%x (add to filter_map)\n", __builtin_bswap32(ip->saddr));
     }
 
     return XDP_PASS;

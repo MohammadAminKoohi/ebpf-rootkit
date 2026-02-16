@@ -13,20 +13,18 @@ struct flow_info {
     __u32 id;                 // flow ID
 };
 
-// Map shared between ingress and egress
+// Map shared between ingress and egress (no pinning; we share via MapReplacements in userspace)
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, __u32);      // IP of client
     __type(value, struct flow_info);
-    __uint(pinning, LIBBPF_PIN_BY_NAME);
 } flow_map SEC(".maps");
 
-// Map for filtered IPs (populated by another eBPF program)
+// Map for filtered IPs (populated by XDP ip_check)
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, __u32);      // IP to track
     __type(value, __u64);    // Timestamp (ns)
-    __uint(pinning, LIBBPF_PIN_BY_NAME);
 } filter_map SEC(".maps");

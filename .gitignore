@@ -1,1 +1,2 @@
 .output
+cmd/rkit-agent/preload/*.so
